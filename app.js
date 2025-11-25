@@ -12,7 +12,14 @@ const app = express();
 // --- CONFIGURACIÓN ---
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static('uploads')); // Servir archivos estáticos
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads'))); // Servir archivos estáticos desde public/uploads
+
+// --- LOGGING MIDDLEWARE ---
+app.use((req, res, next) => {
+    const now = new Date().toISOString();
+    console.log(`[${now}] ${req.method} ${req.url}`);
+    next();
+});
 
 // Configuración de Multer para subida de archivos
 const storage = multer.diskStorage({

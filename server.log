@@ -1,0 +1,17 @@
+Servidor corriendo en http://localhost:3000
+Conectado a MySQL
+[2025-11-25T01:53:38.384Z] POST /api/auth/login
+[2025-11-25T01:53:38.540Z] GET /api/categorias
+[2025-11-25T01:53:38.548Z] GET /api/progreso
+[2025-11-25T01:53:39.625Z] GET /api/senas?categoria_id=1
+[2025-11-25T01:57:51.862Z] POST /api/auth/login
+[2025-11-25T01:57:52.009Z] GET /api/categorias
+[2025-11-25T01:57:52.018Z] GET /api/progreso
+[2025-11-25T01:57:52.867Z] GET /api/senas?categoria_id=1
+[2025-11-25T02:12:33.243Z] POST /api/auth/login
+[2025-11-25T02:12:40.875Z] POST /api/auth/login
+[2025-11-25T02:12:41.624Z] POST /api/auth/login
+[2025-11-25T02:12:47.438Z] POST /api/auth/login
+[2025-11-25T02:12:47.601Z] GET /api/categorias
+[2025-11-25T02:12:47.609Z] GET /api/progreso
+[2025-11-25T02:12:48.795Z] GET /api/senas?categoria_id=1
