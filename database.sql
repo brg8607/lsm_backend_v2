@@ -113,6 +113,17 @@ CREATE TABLE IF NOT EXISTS quiz_diario_completado (
     UNIQUE KEY unique_user_date (user_id, fecha)
 );
 
+-- 1.11 TABLA DE SESIONES DIARIAS
+-- Rastrea cuando el usuario abre la app cada día para calcular rachas
+CREATE TABLE IF NOT EXISTS sesiones_diarias (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    fecha DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_date (user_id, fecha)
+);
+
 -- 1.9 CARGA INICIAL DE DATOS (Tus Categorías Reales)
 -- Limpiamos tabla categorias para evitar duplicados si se corre varias veces (opcional, cuidado en prod)
 -- TRUNCATE TABLE categorias; 
