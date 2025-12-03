@@ -10,7 +10,7 @@ const SCAN_DIR = path.resolve(__dirname, 'public', 'uploads');
 const DB_CONFIG = {
     host: 'localhost',
     user: 'root',
-    password: 'Bur*Cas28',
+    password: '',
     database: 'app_lsm_db'
 };
 
