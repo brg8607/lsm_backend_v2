@@ -799,25 +799,65 @@ app.delete('/api/admin/senas/:id', authenticateAdmin, (req, res) => {
     });
 });
 
-// 14. Estadísticas
+// 14. Estadísticas generales del sistema
 app.get('/api/admin/stats', authenticateAdmin, (req, res) => {
     const stats = {};
-    // Ejecutar consultas en paralelo sería mejor, aquí en serie por simplicidad
+
+    // 1. Total de usuarios
     db.query('SELECT COUNT(*) as count FROM usuarios', (err, resUser) => {
         if (err) return res.status(500).json({ error: err.message });
         stats.total_usuarios = resUser[0].count;
 
-        db.query('SELECT COUNT(*) as count FROM senas', (err, resSenas) => {
-            if (err) return res.status(500).json({ error: err.message });
-            stats.total_senas = resSenas[0].count;
+        // 2. Usuarios activos (con progreso en los últimos 30 días)
+        const treintaDiasAtras = new Date();
+        treintaDiasAtras.setDate(treintaDiasAtras.getDate() - 30);
+        const fechaLimite = treintaDiasAtras.toISOString().split('T')[0];
 
-            db.query('SELECT COUNT(*) as count FROM quiz_resultados', (err, resQuiz) => {
-                if (err) return res.status(500).json({ error: err.message });
-                stats.quizzes_completados = resQuiz[0].count;
+        db.query(
+            'SELECT COUNT(DISTINCT user_id) as count FROM progreso_quiz WHERE updated_at >= ?',
+            [fechaLimite],
+            (err, resActivos) => {
+                if (err) {
+                    // Si falla, intentar con otra tabla o poner 0
+                    stats.usuarios_activos = 0;
+                } else {
+                    stats.usuarios_activos = resActivos[0].count;
+                }
 
-                res.json(stats);
-            });
-        });
+                // 3. Usuarios que completaron todas las categorías
+                db.query(`
+                    SELECT COUNT(*) as count FROM (
+                        SELECT p.user_id, COUNT(DISTINCT p.categoria_id) as categorias_completadas
+                        FROM progreso_quiz p
+                        WHERE p.completado = 1
+                        GROUP BY p.user_id
+                        HAVING categorias_completadas = (SELECT COUNT(*) FROM categorias)
+                    ) AS usuarios_completados
+                `, (err, resCompletados) => {
+                    if (err) return res.status(500).json({ error: err.message });
+                    stats.usuarios_completados = resCompletados[0].count;
+
+                    // 4. Total de categorías
+                    db.query('SELECT COUNT(*) as count FROM categorias', (err, resCategorias) => {
+                        if (err) return res.status(500).json({ error: err.message });
+                        stats.total_categorias = resCategorias[0].count;
+
+                        // 5. Total de señas
+                        db.query('SELECT COUNT(*) as count FROM senas', (err, resSenas) => {
+                            if (err) return res.status(500).json({ error: err.message });
+                            stats.total_senas = resSenas[0].count;
+
+                            // 6. Usuario con mayor racha - Sin usar racha_dias
+                            // Por ahora retornamos null ya que calcular desde sesiones_diarias 
+                            // puede ser costoso. Puedes implementarlo después si quieres.
+                            stats.usuario_top_racha = null;
+
+                            res.json(stats);
+                        });
+                    });
+                });
+            }
+        );
     });
 });
 
@@ -863,13 +903,23 @@ app.get('/api/admin/stats/progress/:userId', authenticateAdmin, (req, res) => {
         c.id as categoria_id,
         c.nombre as categoria_nombre,
         c.icon_url,
-        COALESCE(pq.indice_pregunta, 0) * 10 as porcentaje_completado,
-        pq.updated_at as ultimo_acceso,
+        COALESCE(pq.porcentaje_completado, 0) as porcentaje_completado,
+        pq.ultimo_acceso,
         pq.nivel,
         pq.indice_pregunta,
         pq.completado
     FROM categorias c
-    LEFT JOIN progreso_quiz pq ON c.id = pq.categoria_id AND pq.user_id = ?
+    LEFT JOIN (
+        SELECT DISTINCT categoria_id, 
+               porcentaje_completado, 
+               ultimo_acceso, 
+               nivel, 
+               indice_pregunta, 
+               completado
+        FROM progreso_quiz
+        WHERE user_id = ?
+        GROUP BY categoria_id
+    ) pq ON c.id = pq.categoria_id
     ORDER BY c.id ASC
 `;
 
