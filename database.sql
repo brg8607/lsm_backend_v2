@@ -81,7 +81,22 @@ CREATE TABLE IF NOT EXISTS progreso_usuario (
     ultimo_acceso TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
     FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE CASCADE,
+    FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE CASCADE,
     UNIQUE KEY unique_progreso (usuario_id, categoria_id) -- Evita duplicados
+);
+
+-- 1.9 TABLA DE PROGRESO DE QUIZ (NUEVO)
+-- Guarda dónde se quedó el usuario en un quiz específico
+CREATE TABLE IF NOT EXISTS progreso_quiz (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    categoria_id INT, -- Puede ser NULL si es el quiz diario
+    nivel INT DEFAULT 1,
+    indice_pregunta INT DEFAULT 0, -- En qué pregunta va (0-based)
+    completado BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+    FOREIGN KEY (categoria_id) REFERENCES categorias(id) ON DELETE CASCADE
 );
 
 -- 1.9 CARGA INICIAL DE DATOS (Tus Categorías Reales)

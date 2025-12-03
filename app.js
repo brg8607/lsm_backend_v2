@@ -228,41 +228,94 @@ app.get('/api/cursos/:id/lecciones', (req, res) => {
 
 // C. ACTIVIDADES (Quiz Diario)
 
-// 8. Obtener el Quiz del día
-app.get('/api/quiz/hoy', authenticateToken, (req, res) => {
-    const hoy = new Date().toISOString().split('T')[0];
+// 8. Generar Quiz Dinámico (MEJORADO: COHERENCIA DE CATEGORÍA)
+app.get('/api/quiz/generarDinamico', authenticateToken, (req, res) => {
+    const { categoria_id, nivel } = req.query;
+    let limit = 15; // Default para Quiz del Día
+    let query = 'SELECT * FROM senas';
+    let params = [];
+    let titulo = "Quiz del Día";
 
-    db.query('SELECT * FROM quizzes WHERE fecha_programada = ?', [hoy], (err, results) => {
+    // 1. Configurar la consulta principal (Preguntas Correctas)
+    if (categoria_id) {
+        limit = 10; // Quiz por categoría es más corto
+        query += ' WHERE categoria_id = ?';
+        params.push(categoria_id);
+        titulo = "Quiz de Categoría";
+    }
+
+    // Orden aleatorio y límite
+    query += ' ORDER BY RAND() LIMIT ?';
+    params.push(limit);
+
+    // Ejecutar consulta principal
+    db.query(query, params, (err, senas) => {
         if (err) return res.status(500).json({ error: err.message });
 
-        let quizId;
-        if (results.length === 0) {
-            // Si no hay quiz programado, buscar uno aleatorio o el último creado
-            // Por simplicidad, devolvemos 404 o uno genérico.
-            // Aquí podríamos implementar lógica para crear uno al vuelo.
-            return res.status(404).json({ error: 'No hay quiz programado para hoy' });
-        } else {
-            quizId = results[0].id;
-            const quiz = results[0];
+        if (senas.length === 0) return res.json({ id: Date.now(), titulo, preguntas: [] });
 
-            db.query('SELECT * FROM quiz_preguntas WHERE quiz_id = ?', [quizId], (err, preguntas) => {
-                if (err) return res.status(500).json({ error: err.message });
+        // 2. Configurar consulta de Distractores (Opciones Incorrectas)
+        // EXCLUSIÓN: No queremos que la respuesta correcta salga como distractor duplicado, 
+        // pero eso lo filtramos en memoria más abajo para simplificar la query.
 
-                // Formatear preguntas para el frontend (ocultar respuesta correcta si se desea, aunque el endpoint pide enviarla en 'opciones')
-                const preguntasFormateadas = preguntas.map(p => ({
-                    id: p.id,
-                    pregunta_texto: p.pregunta_texto,
-                    video_url: p.video_asociado_url,
-                    opciones: [p.opcion_correcta, p.opcion_incorrecta1, p.opcion_incorrecta2, p.opcion_incorrecta3].sort(() => Math.random() - 0.5)
-                }));
+        let distractorQuery = 'SELECT palabra FROM senas WHERE id NOT IN (?)';
+        let distractorParams = [senas.map(s => s.id)]; // Excluir las que ya son preguntas
 
-                res.json({
-                    id: quiz.id,
-                    titulo: quiz.titulo,
-                    preguntas: preguntasFormateadas
-                });
-            });
+        if (categoria_id) {
+            // LÓGICA DE COHERENCIA: Si es categoría específica, SOLO traer distractores de esa categoría
+            distractorQuery += ' AND categoria_id = ?';
+            distractorParams.push(categoria_id);
         }
+
+        distractorQuery += ' ORDER BY RAND() LIMIT 100'; // Traemos suficientes para elegir
+
+        db.query(distractorQuery, distractorParams, (err, poolDistractores) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // 3. Armar las preguntas
+            const preguntas = senas.map(sena => {
+                const misDistractores = [];
+
+                // Copiamos el pool para no modificar el original y poder reusar palabras si es necesario
+                // (aunque idealmente no se repiten en la misma pregunta)
+                const poolCopia = [...poolDistractores];
+
+                // Intentar llenar con distractores de la MISMA categoría
+                while (misDistractores.length < 3 && poolCopia.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * poolCopia.length);
+                    const distractor = poolCopia.splice(randomIndex, 1)[0];
+
+                    // Asegurar que no sea igual a la respuesta correcta ni esté ya agregado
+                    if (distractor.palabra !== sena.palabra && !misDistractores.includes(distractor.palabra)) {
+                        misDistractores.push(distractor.palabra);
+                    }
+                }
+
+                // FALLBACK DE EMERGENCIA: Si la categoría es muy pequeña (ej. tiene 2 palabras)
+                // y no alcanzamos a llenar 3 opciones, rellenamos con genéricos para que no crashee.
+                while (misDistractores.length < 3) {
+                    misDistractores.push('Opción Extra ' + (misDistractores.length + 1));
+                }
+
+                // Mezclar respuesta correcta con distractores
+                const opciones = [sena.palabra, ...misDistractores].sort(() => Math.random() - 0.5);
+
+                return {
+                    id: sena.id,
+                    pregunta_texto: `¿Qué significa esta seña?`,
+                    video_asociado_url: sena.video_url,
+                    imagen_asociada_url: sena.imagen_url,
+                    respuesta_correcta: sena.palabra,
+                    opciones: opciones
+                };
+            });
+
+            res.json({
+                id: Date.now(),
+                titulo: titulo,
+                preguntas: preguntas
+            });
+        });
     });
 });
 
@@ -352,7 +405,7 @@ app.get('/api/progreso', authenticateToken, (req, res) => {
     });
 });
 
-// 11. Actualizar progreso
+// 11. Actualizar progreso (Categorías)
 app.post('/api/progreso/actualizar', authenticateToken, (req, res) => {
     const { categoria_id, incremento } = req.body;
     const usuario_id = req.user.id;
@@ -375,6 +428,111 @@ app.post('/api/progreso/actualizar', authenticateToken, (req, res) => {
                 res.json({ mensaje: 'Progreso iniciado', porcentaje: nuevoPorcentaje });
             });
         }
+    });
+});
+
+// 11b. Guardar progreso de Quiz
+app.post('/api/progreso/guardar', authenticateToken, (req, res) => {
+    const { categoria_id, nivel, indice } = req.body;
+    const user_id = req.user.id;
+    const completado = indice >= 10;
+
+    // Upsert (Insertar o Actualizar)
+    const query = `
+        INSERT INTO progreso_quiz (user_id, categoria_id, nivel, indice_pregunta, completado)
+        VALUES (?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+        nivel = VALUES(nivel),
+        indice_pregunta = VALUES(indice_pregunta),
+        completado = VALUES(completado)
+    `;
+
+    db.query(query, [user_id, categoria_id, nivel, indice, completado], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ mensaje: 'Progreso guardado' });
+    });
+});
+
+// 11c. Obtener Mapa de Progreso (Home)
+app.get('/api/progreso/mapa', authenticateToken, (req, res) => {
+    const user_id = req.user.id;
+
+    // Obtener todas las categorías y su progreso
+    const query = `
+        SELECT c.id, c.nombre, c.icon_url, 
+               p.nivel, p.indice_pregunta, p.completado
+        FROM categorias c
+        LEFT JOIN progreso_quiz p ON c.id = p.categoria_id AND p.user_id = ?
+        ORDER BY c.id ASC
+    `;
+
+    db.query(query, [user_id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        // Calcular bloqueado/desbloqueado
+        // Regla: La primera siempre desbloqueada.
+        // Las siguientes desbloqueadas si la anterior está completada.
+
+        const mapa = results.map((cat, index) => {
+            let bloqueado = false;
+            if (index > 0) {
+                const categoriaAnterior = results[index - 1];
+                // Si la anterior no tiene registro o no está completada, esta se bloquea
+                if (!categoriaAnterior.completado) {
+                    bloqueado = true;
+                }
+            }
+
+            return {
+                id: cat.id,
+                nombre: cat.nombre,
+                icon_url: cat.icon_url,
+                bloqueado: bloqueado,
+                completado: !!cat.completado,
+                nivel: cat.nivel || 1,
+                indice: cat.indice_pregunta || 0
+            };
+        });
+
+        res.json(mapa);
+    });
+});
+
+// 11d. Obtener progreso actual (Continuar)
+app.get('/api/progreso/actual', authenticateToken, (req, res) => {
+    const user_id = req.user.id;
+
+    // Obtenemos el último modificado
+    const query = `
+        SELECT p.*, c.nombre as categoria_nombre 
+        FROM progreso_quiz p
+        JOIN categorias c ON p.categoria_id = c.id
+        WHERE p.user_id = ?
+        ORDER BY p.updated_at DESC
+        LIMIT 1
+    `;
+
+    db.query(query, [user_id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (results.length === 0) {
+            // Si no hay progreso, devolver null o un objeto por defecto
+            // Frontend espera 404 si no hay datos? O null?
+            // "Devuelve { ... } para que el botón sepa a dónde ir."
+            // Si no hay, devolvemos 404 para que el botón se oculte o muestre "Empezar"
+            return res.status(404).json({ error: 'No hay progreso reciente' });
+        }
+
+        const p = results[0];
+        // Calcular porcentaje (asumiendo 10 preguntas)
+        const porcentaje = Math.min(1, (p.indice_pregunta || 0) / 10);
+
+        res.json({
+            categoria_id: p.categoria_id,
+            nivel: p.nivel,
+            progreso_percent: porcentaje,
+            categoria_nombre: p.categoria_nombre
+        });
     });
 });
 
