@@ -852,19 +852,19 @@ app.get('/api/admin/stats/progress/:userId', authenticateAdmin, (req, res) => {
 
         // Obtener progreso por categoría
         const queryProgreso = `
-        SELECT 
-            c.id as categoria_id,
-            c.nombre as categoria_nombre,
-            c.icon_url,
-            -- Calculamos el porcentaje basándonos en el índice de la pregunta (asumiendo 10 preguntas)        COALESCE(pq.indice_pregunta, 0) * 10 as porcentaje_completado,
-            pq.updated_at as ultimo_acceso,
-            pq.nivel,
-            pq.indice_pregunta,
-            pq.completado
-        FROM categorias c
-        LEFT JOIN progreso_quiz pq ON c.id = pq.categoria_id AND pq.user_id = ?
-        ORDER BY c.id ASC
-    `;
+    SELECT 
+        c.id as categoria_id,
+        c.nombre as categoria_nombre,
+        c.icon_url,
+        COALESCE(pq.indice_pregunta, 0) * 10 as porcentaje_completado,
+        pq.updated_at as ultimo_acceso,
+        pq.nivel,
+        pq.indice_pregunta,
+        pq.completado
+    FROM categorias c
+    LEFT JOIN progreso_quiz pq ON c.id = pq.categoria_id AND pq.user_id = ?
+    ORDER BY c.id ASC
+`;
 
         db.query(queryProgreso, [userId, userId], (err, progresoResults) => {
             if (err) return res.status(500).json({ error: err.message });
