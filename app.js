@@ -696,6 +696,186 @@ app.get('/api/admin/stats', authenticateAdmin, (req, res) => {
     });
 });
 
+// 15. Listar todos los usuarios con progreso
+app.get('/api/admin/stats/users', authenticateAdmin, (req, res) => {
+    const query = `
+        SELECT 
+            u.id,
+            u.nombre,
+            u.correo,
+            u.tipo_usuario,
+            u.fecha_registro,
+            COUNT(DISTINCT qr.id) as quizzes_completados,
+            AVG(COALESCE(pu.porcentaje_completado, 0)) as progreso_promedio,
+            MAX(qr.fecha_realizacion) as ultima_actividad
+        FROM usuarios u
+        LEFT JOIN quiz_resultados qr ON u.id = qr.usuario_id
+        LEFT JOIN progreso_usuario pu ON u.id = pu.usuario_id
+        GROUP BY u.id, u.nombre, u.correo, u.tipo_usuario, u.fecha_registro
+        ORDER BY u.fecha_registro DESC
+    `;
+
+    db.query(query, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+// 16. Progreso detallado de un usuario específico
+app.get('/api/admin/stats/progress/:userId', authenticateAdmin, (req, res) => {
+    const userId = req.params.userId;
+
+    // Obtener información del usuario
+    db.query('SELECT id, nombre, correo, tipo_usuario, fecha_registro FROM usuarios WHERE id = ?', [userId], (err, userResults) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (userResults.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+        const usuario = userResults[0];
+
+        // Obtener progreso por categoría
+        const queryProgreso = `
+        SELECT 
+            c.id as categoria_id,
+            c.nombre as categoria_nombre,
+            c.icon_url,
+            -- Calculamos el porcentaje basándonos en el índice de la pregunta (asumiendo 10 preguntas)        COALESCE(pq.indice_pregunta, 0) * 10 as porcentaje_completado,
+            pq.updated_at as ultimo_acceso,
+            pq.nivel,
+            pq.indice_pregunta,
+            pq.completado
+        FROM categorias c
+        LEFT JOIN progreso_quiz pq ON c.id = pq.categoria_id AND pq.user_id = ?
+        ORDER BY c.id ASC
+    `;
+
+        db.query(queryProgreso, [userId, userId], (err, progresoResults) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // Obtener historial de quizzes
+            const queryQuizzes = `
+                SELECT 
+                    qr.id,
+                    qr.quiz_id,
+                    qr.puntaje,
+                    qr.fecha_realizacion,
+                    q.titulo
+                FROM quiz_resultados qr
+                LEFT JOIN quizzes q ON qr.quiz_id = q.id
+                WHERE qr.usuario_id = ?
+                ORDER BY qr.fecha_realizacion DESC
+                LIMIT 20
+            `;
+
+            db.query(queryQuizzes, [userId], (err, quizzesResults) => {
+                if (err) return res.status(500).json({ error: err.message });
+
+                res.json({
+                    usuario: usuario,
+                    progreso_categorias: progresoResults,
+                    historial_quizzes: quizzesResults,
+                    resumen: {
+                        total_categorias: progresoResults.length,
+                        categorias_completadas: progresoResults.filter(p => p.completado).length,
+                        quizzes_realizados: quizzesResults.length,
+                        promedio_puntaje: quizzesResults.length > 0 
+                            ? (quizzesResults.reduce((sum, q) => sum + q.puntaje, 0) / quizzesResults.length).toFixed(2)
+                            : 0
+                    }
+                });
+            });
+        });
+    });
+});
+
+// 17. Crear nueva categoría
+app.post('/api/admin/categorias', authenticateAdmin, (req, res) => {
+    const { nombre, icon_url, descripcion } = req.body;
+
+    if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
+
+    const query = 'INSERT INTO categorias (nombre, icon_url, descripcion) VALUES (?, ?, ?)';
+    db.query(query, [nombre, icon_url || null, descripcion || null], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(201).json({ 
+            mensaje: 'Categoría creada exitosamente', 
+            id: result.insertId,
+            categoria: { id: result.insertId, nombre, icon_url, descripcion }
+        });
+    });
+});
+
+// 18. Editar categoría
+app.put('/api/admin/categorias/:id', authenticateAdmin, (req, res) => {
+    const { nombre, icon_url, descripcion } = req.body;
+    const { id } = req.params;
+
+    if (!nombre) return res.status(400).json({ error: 'El nombre es requerido' });
+
+    const query = 'UPDATE categorias SET nombre = ?, icon_url = ?, descripcion = ? WHERE id = ?';
+    db.query(query, [nombre, icon_url || null, descripcion || null, id], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (result.affectedRows === 0) return res.status(404).json({ error: 'Categoría no encontrada' });
+        res.json({ mensaje: 'Categoría actualizada exitosamente' });
+    });
+});
+
+// 19. Eliminar categoría
+app.delete('/api/admin/categorias/:id', authenticateAdmin, (req, res) => {
+    const { id } = req.params;
+
+    // Verificar si hay señas asociadas a esta categoría
+    db.query('SELECT COUNT(*) as count FROM senas WHERE categoria_id = ?', [id], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        const senasCount = results[0].count;
+        if (senasCount > 0) {
+            return res.status(400).json({ 
+                error: `No se puede eliminar la categoría porque tiene ${senasCount} señas asociadas. Elimina las señas primero.` 
+            });
+        }
+
+        // Si no hay señas, proceder a eliminar
+        db.query('DELETE FROM categorias WHERE id = ?', [id], (err, result) => {
+            if (err) return res.status(500).json({ error: err.message });
+            if (result.affectedRows === 0) return res.status(404).json({ error: 'Categoría no encontrada' });
+            res.json({ mensaje: 'Categoría eliminada exitosamente' });
+        });
+    });
+});
+
+// 20. Listar todos los quizzes
+app.get('/api/admin/quiz', authenticateAdmin, (req, res) => {
+    const query = `
+        SELECT 
+            q.id,
+            q.titulo,
+            q.fecha_programada,
+            q.creado_en,
+            COUNT(qp.id) as total_preguntas
+        FROM quizzes q
+        LEFT JOIN quiz_preguntas qp ON q.id = qp.quiz_id
+        GROUP BY q.id, q.titulo, q.fecha_programada, q.creado_en
+        ORDER BY q.fecha_programada DESC
+    `;
+
+    db.query(query, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+// 21. Eliminar quiz
+app.delete('/api/admin/quiz/:id', authenticateAdmin, (req, res) => {
+    const { id } = req.params;
+
+    // Las preguntas se eliminan automáticamente por CASCADE
+    db.query('DELETE FROM quizzes WHERE id = ?', [id], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (result.affectedRows === 0) return res.status(404).json({ error: 'Quiz no encontrado' });
+        res.json({ mensaje: 'Quiz eliminado exitosamente' });
+    });
+});
+
 // Iniciar servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
