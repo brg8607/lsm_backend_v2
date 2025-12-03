@@ -764,17 +764,23 @@ app.get('/api/progreso/actual', authenticateToken, (req, res) => {
 
 // E. ADMINISTRADOR
 
-// 12. Subir nueva seña
+// 12. Subir nueva seña (Video opcional)
 app.post('/api/admin/senas', authenticateAdmin, upload.single('video'), (req, res) => {
     const { palabra, categoria_id, descripcion } = req.body;
     const video_url = req.file ? req.file.path : null;
 
-    if (!video_url) return res.status(400).json({ error: 'Video requerido' });
+    if (!palabra || !categoria_id) {
+        return res.status(400).json({ error: 'Palabra y categoría son requeridos' });
+    }
 
     const query = 'INSERT INTO senas (categoria_id, palabra, descripcion, video_url) VALUES (?, ?, ?, ?)';
     db.query(query, [categoria_id, palabra, descripcion, video_url], (err, result) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.status(201).json({ mensaje: 'Seña creada', id: result.insertId });
+        res.status(201).json({ 
+            mensaje: 'Seña creada', 
+            id: result.insertId,
+            sena: { id: result.insertId, palabra, descripcion, categoria_id, video_url }
+        });
     });
 });
 
