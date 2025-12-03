@@ -898,39 +898,35 @@ app.get('/api/admin/stats/progress/:userId', authenticateAdmin, (req, res) => {
 
     // Obtener información del usuario
     db.query('SELECT id, nombre, correo, tipo_usuario, fecha_registro FROM usuarios WHERE id = ?', [userId], (err, userResults) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) {
+            console.error('Error obteniendo usuario:', err);
+            return res.status(500).json({ error: err.message });
+        }
         if (userResults.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
 
         const usuario = userResults[0];
 
-        // Obtener progreso por categoría
+        // Obtener progreso por categoría - CORREGIDO
         const queryProgreso = `
-    SELECT 
-        c.id as categoria_id,
-        c.nombre as categoria_nombre,
-        c.icon_url,
-        COALESCE(pq.porcentaje_completado, 0) as porcentaje_completado,
-        pq.ultimo_acceso,
-        pq.nivel,
-        pq.indice_pregunta,
-        pq.completado
-    FROM categorias c
-    LEFT JOIN (
-        SELECT DISTINCT categoria_id, 
-               porcentaje_completado, 
-               ultimo_acceso, 
-               nivel, 
-               indice_pregunta, 
-               completado
-        FROM progreso_quiz
-        WHERE user_id = ?
-        GROUP BY categoria_id
-    ) pq ON c.id = pq.categoria_id
-    ORDER BY c.id ASC
-`;
+            SELECT 
+                c.id as categoria_id,
+                c.nombre as categoria_nombre,
+                c.icon_url,
+                COALESCE(pq.nivel, 1) as nivel,
+                COALESCE(pq.indice_pregunta, 0) as indice_pregunta,
+                COALESCE(pq.completado, 0) as completado,
+                COALESCE((pq.indice_pregunta / 10.0) * 100, 0) as porcentaje_completado,
+                pq.updated_at as ultimo_acceso
+            FROM categorias c
+            LEFT JOIN progreso_quiz pq ON c.id = pq.categoria_id AND pq.user_id = ?
+            ORDER BY c.id ASC
+        `;
 
-        db.query(queryProgreso, [userId, userId], (err, progresoResults) => {
-            if (err) return res.status(500).json({ error: err.message });
+        db.query(queryProgreso, [userId], (err, progresoResults) => {
+            if (err) {
+                console.error('Error en queryProgreso:', err);
+                return res.status(500).json({ error: err.message });
+            }
 
             // Obtener historial de quizzes
             const queryQuizzes = `
@@ -938,17 +934,18 @@ app.get('/api/admin/stats/progress/:userId', authenticateAdmin, (req, res) => {
                     qr.id,
                     qr.quiz_id,
                     qr.puntaje,
-                    qr.fecha_realizacion,
-                    q.titulo
+                    qr.fecha_realizacion
                 FROM quiz_resultados qr
-                LEFT JOIN quizzes q ON qr.quiz_id = q.id
                 WHERE qr.usuario_id = ?
                 ORDER BY qr.fecha_realizacion DESC
                 LIMIT 20
             `;
 
             db.query(queryQuizzes, [userId], (err, quizzesResults) => {
-                if (err) return res.status(500).json({ error: err.message });
+                if (err) {
+                    console.error('Error en queryQuizzes:', err);
+                    return res.status(500).json({ error: err.message });
+                }
 
                 res.json({
                     usuario: usuario,
