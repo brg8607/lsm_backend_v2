@@ -533,6 +533,72 @@ app.get('/api/puntos/actual', authenticateToken, (req, res) => {
     });
 });
 
+// G. QUIZ DIARIO
+
+// 17. Completar quiz diario
+app.post('/api/quiz/diario/completar', authenticateToken, (req, res) => {
+    const { puntuacion } = req.body;
+    const user_id = req.user.id;
+
+    if (puntuacion === undefined || isNaN(puntuacion)) {
+        return res.status(400).json({ error: 'Puntuación inválida' });
+    }
+
+    // Obtener fecha de hoy en formato YYYY-MM-DD
+    const hoy = new Date().toISOString().split('T')[0];
+
+    // UPSERT: Insertar o actualizar si ya existe para hoy
+    const query = `
+        INSERT INTO quiz_diario_completado (user_id, fecha, puntuacion, completado)
+        VALUES (?, ?, ?, TRUE)
+        ON DUPLICATE KEY UPDATE
+        puntuacion = VALUES(puntuacion),
+        completado = TRUE
+    `;
+
+    db.query(query, [user_id, hoy, puntuacion], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({
+            mensaje: 'Quiz diario completado',
+            puntuacion: puntuacion,
+            fecha: hoy
+        });
+    });
+});
+
+// 18. Verificar estado del quiz diario
+app.get('/api/quiz/diario/estado', authenticateToken, (req, res) => {
+    const user_id = req.user.id;
+
+    // Obtener fecha de hoy en formato YYYY-MM-DD
+    const hoy = new Date().toISOString().split('T')[0];
+
+    const query = `
+        SELECT puntuacion, fecha, completado 
+        FROM quiz_diario_completado 
+        WHERE user_id = ? AND fecha = ?
+    `;
+
+    db.query(query, [user_id, hoy], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        if (results.length === 0) {
+            // No ha completado el quiz de hoy
+            return res.json({
+                completado: false,
+                fecha: hoy
+            });
+        }
+
+        // Ya completó el quiz de hoy
+        res.json({
+            completado: true,
+            puntuacion: results[0].puntuacion,
+            fecha: results[0].fecha
+        });
+    });
+});
+
 // 11d. Obtener progreso actual (Continuar)
 app.get('/api/progreso/actual', authenticateToken, (req, res) => {
     const user_id = req.user.id;
