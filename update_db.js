@@ -16,11 +16,11 @@ db.connect(err => {
     }
     console.log('Conectado a MySQL');
 
-    const query = "ALTER TABLE progreso_quiz ADD COLUMN completado BOOLEAN DEFAULT FALSE;";
+    const query = "ALTER TABLE usuarios ADD COLUMN puntos INT DEFAULT 0;";
     db.query(query, (err, result) => {
         if (err) {
             if (err.code === 'ER_DUP_FIELDNAME') {
-                console.log('Columna ya existe');
+                console.log('Columna puntos ya existe');
             } else {
                 console.error('Error alterando tabla:', err);
                 process.exit(1);

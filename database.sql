@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     google_uid VARCHAR(150) UNIQUE, -- ID único de Google
     tipo_usuario ENUM('normal', 'invitado', 'admin') DEFAULT 'normal',
     avatar_url VARCHAR(255) DEFAULT NULL,
+    puntos INT DEFAULT 0,
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
