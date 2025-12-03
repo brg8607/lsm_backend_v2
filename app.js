@@ -906,19 +906,20 @@ app.get('/api/admin/stats/progress/:userId', authenticateAdmin, (req, res) => {
 
         const usuario = userResults[0];
 
-        // Obtener progreso por categoría - CORREGIDO
+        // Obtener progreso por categoría - UNA FILA POR CATEGORÍA
         const queryProgreso = `
             SELECT 
                 c.id as categoria_id,
                 c.nombre as categoria_nombre,
                 c.icon_url,
-                COALESCE(pq.nivel, 1) as nivel,
-                COALESCE(pq.indice_pregunta, 0) as indice_pregunta,
-                COALESCE(pq.completado, 0) as completado,
-                COALESCE((pq.indice_pregunta / 10.0) * 100, 0) as porcentaje_completado,
-                pq.updated_at as ultimo_acceso
+                MAX(COALESCE(pq.nivel, 1)) as nivel,
+                MAX(COALESCE(pq.indice_pregunta, 0)) as indice_pregunta,
+                MAX(COALESCE(pq.completado, 0)) as completado,
+                MAX(COALESCE((pq.indice_pregunta / 10.0) * 100, 0)) as porcentaje_completado,
+                MAX(pq.updated_at) as ultimo_acceso
             FROM categorias c
             LEFT JOIN progreso_quiz pq ON c.id = pq.categoria_id AND pq.user_id = ?
+            GROUP BY c.id, c.nombre, c.icon_url
             ORDER BY c.id ASC
         `;
 
@@ -934,7 +935,8 @@ app.get('/api/admin/stats/progress/:userId', authenticateAdmin, (req, res) => {
                     qr.id,
                     qr.quiz_id,
                     qr.puntaje,
-                    qr.fecha_realizacion
+                    qr.fecha_realizacion,
+                    NULL as titulo
                 FROM quiz_resultados qr
                 WHERE qr.usuario_id = ?
                 ORDER BY qr.fecha_realizacion DESC
@@ -947,17 +949,24 @@ app.get('/api/admin/stats/progress/:userId', authenticateAdmin, (req, res) => {
                     return res.status(500).json({ error: err.message });
                 }
 
+                // Calcular resumen
+                const categoriasCompletadas = progresoResults.filter(p => p.completado === 1).length;
+                const progresoTotal = progresoResults.reduce((sum, p) => sum + parseFloat(p.porcentaje_completado || 0), 0);
+                const progresoPromedio = progresoResults.length > 0 ? (progresoTotal / progresoResults.length).toFixed(1) : 0;
+
+                console.log(`Usuario ${userId} - Total categorías: ${progresoResults.length}, Completadas: ${categoriasCompletadas}, Promedio: ${progresoPromedio}%`);
+
                 res.json({
                     usuario: usuario,
                     progreso_categorias: progresoResults,
                     historial_quizzes: quizzesResults,
                     resumen: {
                         total_categorias: progresoResults.length,
-                        categorias_completadas: progresoResults.filter(p => p.completado).length,
+                        categorias_completadas: categoriasCompletadas,
                         quizzes_realizados: quizzesResults.length,
                         promedio_puntaje: quizzesResults.length > 0
-                            ? (quizzesResults.reduce((sum, q) => sum + q.puntaje, 0) / quizzesResults.length).toFixed(2)
-                            : 0
+                            ? (quizzesResults.reduce((sum, q) => sum + q.puntaje, 0) / quizzesResults.length).toFixed(1)
+                            : "0"
                     }
                 });
             });
