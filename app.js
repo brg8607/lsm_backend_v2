@@ -33,13 +33,20 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // Conexión a Base de Datos
-const db = mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'app_lsm_db',
-    port: process.env.DB_PORT || 3306
-});
+let db;
+if (process.env.JAWSDB_URL) {
+    // Heroku JawsDB connection
+    db = mysql.createConnection(process.env.JAWSDB_URL);
+} else {
+    // Local development
+    db = mysql.createConnection({
+        host: process.env.DB_HOST || 'localhost',
+        user: process.env.DB_USER || 'root',
+        password: process.env.DB_PASSWORD || '',
+        database: process.env.DB_NAME || 'app_lsm_db',
+        port: process.env.DB_PORT || 3306
+    });
+}
 
 db.connect(err => {
     if (err) {
