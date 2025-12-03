@@ -876,10 +876,10 @@ app.get('/api/admin/stats/users', authenticateAdmin, (req, res) => {
             u.correo,
             u.tipo_usuario,
             u.fecha_registro,
-            (SELECT COUNT(*) 
+            (SELECT COUNT(DISTINCT categoria_id) 
              FROM progreso_quiz 
-             WHERE user_id = u.id AND indice_pregunta > 0) as quizzes_completados,
-            (SELECT COUNT(*) 
+             WHERE user_id = u.id AND completado = 1) as quizzes_completados,
+            (SELECT COUNT(DISTINCT categoria_id) 
              FROM progreso_quiz 
              WHERE user_id = u.id AND completado = 1) as categorias_completadas,
             (SELECT COUNT(*) 
@@ -888,7 +888,7 @@ app.get('/api/admin/stats/users', authenticateAdmin, (req, res) => {
              FROM progreso_quiz 
              WHERE user_id = u.id) as ultima_actividad
         FROM usuarios u
-        WHERE u.tipo_usuario != 'invitado'
+        WHERE u.tipo_usuario = 'normal'
         ORDER BY u.fecha_registro DESC
     `;
 
