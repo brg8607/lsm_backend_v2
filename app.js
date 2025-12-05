@@ -106,15 +106,36 @@ app.get('/', (req, res) => {
                 <div class="status">✓ API Online</div>
                 
                 <div class="endpoints">
-                    <h2>📍 Endpoints Disponibles</h2>
+                    <h2>📍 Endpoints Disponibles (Sin Token)</h2>
                     <div class="endpoint"><span class="method post">POST</span> /api/auth/register</div>
-                    <div class="endpoint"><span class="method post">POST</span> /api/login</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/auth/login</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/auth/google</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/auth/guest</div>
                     <div class="endpoint"><span class="method">GET</span> /api/categorias</div>
-                    <div class="endpoint"><span class="method">GET</span> /api/categorias/:id/senas</div>
-                    <div class="endpoint"><span class="method">GET</span> /api/perfil</div>
-                    <div class="endpoint"><span class="method">GET</span> /api/quiz-diario</div>
-                    <div class="endpoint"><span class="method post">POST</span> /api/admin/categorias</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/senas</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/senas/:id</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/cursos</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/cursos/:id/lecciones</div>
+                    
+                    <h2 style="margin-top: 20px;">🔐 Con Token (Autenticación Requerida)</h2>
+                    <div class="endpoint"><span class="method">GET</span> /api/quiz/generarDinamico</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/quiz/resultado</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/quiz/diario/completar</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/quiz/diario/estado</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/progreso</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/progreso/guardar</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/progreso/mapa</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/progreso/actual</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/puntos/sumar</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/puntos/actual</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/sesion/registrar</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/racha/actual</div>
+                    
+                    <h2 style="margin-top: 20px;">👨‍💼 Admin (Token Admin Requerido)</h2>
                     <div class="endpoint"><span class="method post">POST</span> /api/admin/senas</div>
+                    <div class="endpoint"><span class="method">GET</span> /api/admin/stats</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/admin/categorias</div>
+                    <div class="endpoint"><span class="method post">POST</span> /api/admin/quiz</div>
                 </div>
 
                 <div class="footer">
