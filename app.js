@@ -159,7 +159,7 @@ app.get('/', (req, res) => {
         <body>
             <div class="container">
                 <h1>🤟 LSM Backend API</h1>
-                <p class="subtitle">Lenguaje de Señas Mexicano</p>
+                <p class="subtitle">Lengua de Señas Mexicano</p>
                 <div class="status">✓ API Online</div>
                 
                 <div class="endpoints">
@@ -175,8 +175,7 @@ app.get('/', (req, res) => {
                 </div>
 
                 <div class="footer">
-                    <p>Ver documentación completa en <a href="/api/docs">API Reference</a></p>
-                    <p style="margin-top: 10px;">Hosted on Render • Database on Aiven</p>
+                    <p>Hosted on Render • Database on Aiven</p>
                 </div>
             </div>
         </body>
