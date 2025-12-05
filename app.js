@@ -137,4 +137,9 @@ app.use('/api/quiz', quizRoutes);
 app.use('/api/progreso', progresoRoutes);
 app.use('/api/admin', adminRoutes);
 
-module.exports = app;
+// Iniciar servidor
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});

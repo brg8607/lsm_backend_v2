@@ -2,12 +2,12 @@
   "name": "backend-lsm",
   "version": "1.0.0",
   "description": "LSM Backend Server",
-  "main": "server.js",
+  "main": "app.js",
   "engines": {
     "node": "18.x"
   },
   "scripts": {
-    "start": "node server.js",
+    "start": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
